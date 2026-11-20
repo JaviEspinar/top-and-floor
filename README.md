@@ -10,7 +10,7 @@ A local dashboard that shows context indicators for any stock, ETF or crypto pai
 | US net liquidity | Fed balance sheet minus Treasury account minus reverse repo (TradingView FRED series) |
 | Fear and greed, crypto | alternative.me |
 | Sentiment, stocks and ETFs | Own 0 to 100 score from S&P 500 momentum, VIX, stocks vs treasuries and junk vs quality bonds |
-| Public interest | Wikipedia pageviews, last 7 days against the 90 day average |
+| Public interest | Google Trends searches, last finished week against the 12 month average |
 
 This is information, not financial advice.
 
@@ -26,13 +26,17 @@ Then open http://127.0.0.1:8000 and search for a symbol.
 
 ## Public interest card
 
-Wikipedia rejects scripts that do not identify themselves. Set a contact (email or URL) before starting:
+Search interest comes from the endpoints the Google Trends website uses, because Google's official Trends API is still an approval-only alpha. The search term is the coin name for crypto ("Bitcoin"), the ticker plus "stock" for stocks ("AAPL stock") and the ticker plus "ETF" for funds ("SPY ETF"). Results are stored for 12 hours.
 
-```sh
-TOP_AND_FLOOR_CONTACT="you@example.com" uv run top-and-floor
-```
+## Cache
+
+Everything requested from TradingView and Google Trends is stored in a SQLite database at `data/cache.sqlite` (change it with `TOP_AND_FLOOR_DB`). Bars are kept and topped up with only the missing days once they are older than 30 minutes, symbol searches are kept for a day, and stored data is served when TradingView is unreachable. Delete the file to start clean.
+
+## Favorites
+
+Press the star next to a symbol's name to save it in the left column, and the cross next to a favorite to remove it. Favorites live in the same SQLite file as the cache, so deleting that file removes them too.
 
 ## Notes
 
 - Market data comes from TradingView through the unofficial [tvdatafeed](https://github.com/rongardF/tvdatafeed) library. It can break without notice and is meant for personal use only. All TradingView access lives in `src/top_and_floor/tv.py`, so another provider can replace it.
-- `scripts/probe_tvdatafeed.py` checks which symbols the library can fetch today.
+- `scripts/probe_tvdatafeed.py` checks which symbols the library can fetch today, and `scripts/probe_google_trends.py` checks that Google Trends still answers.

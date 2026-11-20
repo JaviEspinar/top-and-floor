@@ -5,8 +5,9 @@ from pathlib import Path
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
-from . import cards, tv
+from . import cards, favorites, tv
 from .indicators import ema, rsi
 
 STATIC = Path(__file__).parent / "static"
@@ -21,6 +22,30 @@ def index() -> FileResponse:
 @app.get("/api/search")
 def search(q: str) -> list[dict]:
     return tv.search(q)
+
+
+class Favorite(BaseModel):
+    symbol: str
+    exchange: str
+    type: str = ""
+    description: str = ""
+
+
+@app.get("/api/favorites")
+def list_favorites() -> list[dict]:
+    return favorites.all_favorites()
+
+
+@app.put("/api/favorites")
+def add_favorite(item: Favorite) -> list[dict]:
+    favorites.add(item.symbol, item.exchange, item.type, item.description)
+    return favorites.all_favorites()
+
+
+@app.delete("/api/favorites")
+def remove_favorite(symbol: str, exchange: str) -> list[dict]:
+    favorites.remove(symbol, exchange)
+    return favorites.all_favorites()
 
 
 def _failed(key: str, title: str, exc: Exception) -> dict:
@@ -68,7 +93,7 @@ async def dashboard(symbol: str, exchange: str = "", type: str = "", description
         _safe("sentiment", "Fear and greed", sentiment),
         _safe("liquidity", "US net liquidity", cards.liquidity_card),
         _safe("dxy", "Dollar index (DXY)", cards.dxy_card),
-        _safe("interest", "Public interest", cards.public_interest_card, description),
+        _safe("interest", "Public interest", cards.public_interest_card, symbol, type, description),
     )
 
     def line(series):
@@ -79,6 +104,8 @@ async def dashboard(symbol: str, exchange: str = "", type: str = "", description
 
     return {
         "symbol": f"{exchange}:{symbol}",
+        "ticker": symbol,
+        "exchange": exchange,
         "description": description,
         "type": type,
         "last": float(close.iloc[-1]),

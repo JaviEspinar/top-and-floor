@@ -1,18 +1,12 @@
 """One function per indicator. Each returns a card: a headline value, a label
 that says how to read it, and a history series for the sparkline."""
-import datetime as dt
-import os
-from urllib.parse import quote
 
 import httpx
 import pandas as pd
 
-from . import tv
+from . import trends, tv
 from .indicators import ema, pct_change_over, percentile_rank, rsi, sma
 
-# Wikimedia rejects scripted clients whose User-Agent has no contact details
-# (https://w.wiki/4wJS). Set this to an email or URL of yours to enable the card.
-CONTACT_ENV = "TOP_AND_FLOOR_CONTACT"
 CRYPTO_TYPES = {"spot", "crypto", "swap"}
 HISTORY_POINTS = 365
 
@@ -157,51 +151,30 @@ def _sentiment_card(title: str, now: float, series: pd.Series, detail: str) -> d
     return _card("sentiment", title, f"{now:.0f}", label, tone, detail + " 0 is extreme fear, 100 is extreme greed.", series)
 
 
-def _wikimedia_headers() -> dict:
-    return {"User-Agent": f"indicator-dashboard/0.1 ({os.environ[CONTACT_ENV]})"}
+def trends_keyword(symbol: str, asset_type: str, description: str) -> str:
+    """What people would type into Google when they get interested in the asset."""
+    if is_crypto(asset_type):
+        # "Bitcoin / TetherUS" should look up Bitcoin.
+        return description.split(" / ")[0].strip() or symbol
+    if asset_type == "fund":
+        return f"{symbol} ETF"
+    if asset_type == "stock":
+        return f"{symbol} stock"
+    return description or symbol
 
 
-def _wikipedia_article(description: str) -> str | None:
-    # "Bitcoin / TetherUS" should look up Bitcoin.
-    query = description.split(" / ")[0].strip()
-    if not query:
-        return None
-    resp = httpx.get(
-        "https://en.wikipedia.org/w/api.php",
-        params={"action": "opensearch", "search": query, "limit": 1, "format": "json"},
-        headers=_wikimedia_headers(),
-        timeout=15,
-    )
-    resp.raise_for_status()
-    titles = resp.json()[1]
-    return titles[0] if titles else None
-
-
-def public_interest_card(description: str) -> dict:
-    """Wikipedia pageviews: last 7 days against the 90 day average."""
-    if not os.environ.get(CONTACT_ENV):
+def public_interest_card(symbol: str, asset_type: str, description: str) -> dict:
+    """Google searches: the last finished week against the 12 month average."""
+    keyword = trends_keyword(symbol, asset_type, description)
+    weekly = trends.interest_over_time(keyword)
+    if weekly.empty or weekly.max() == 0:
         return _card(
-            "interest", "Public interest", "n/a", "Not configured", "neutral",
-            f"Wikipedia requires contact details from scripts. Set {CONTACT_ENV} to your email or a URL and restart.",
-            None,
+            "interest", "Public interest", "n/a", "No search data", "neutral",
+            f'Google Trends has too few searches for "{keyword}".', None,
         )
-    article = _wikipedia_article(description)
-    if article is None:
-        return _card("interest", "Public interest", "n/a", "No Wikipedia article found", "neutral", "", None)
-    end = dt.date.today() - dt.timedelta(days=1)
-    start = end - dt.timedelta(days=HISTORY_POINTS)
-    url = (
-        "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/"
-        f"{quote(article.replace(' ', '_'), safe='')}/daily/{start:%Y%m%d}/{end:%Y%m%d}"
-    )
-    resp = httpx.get(url, headers=_wikimedia_headers(), timeout=15)
-    resp.raise_for_status()
-    views = pd.Series(
-        {pd.Timestamp(item["timestamp"][:8]): float(item["views"]) for item in resp.json()["items"]}
-    ).sort_index()
-    week = views.tail(7).mean()
-    baseline = views.tail(90).mean()
-    ratio = week / baseline if baseline else 1.0
+    now = float(weekly.iloc[-1])
+    baseline = float(weekly.tail(52).mean())
+    ratio = now / baseline if baseline else 1.0
     if ratio >= 1.5:
         label, tone = "Attention spike", "bear"
     elif ratio <= 0.7:
@@ -211,9 +184,10 @@ def public_interest_card(description: str) -> dict:
     return _card(
         "interest",
         "Public interest",
-        f"{ratio:.2f}x",
+        f"{now:.0f}",
         label,
         tone,
-        f'Wikipedia views of "{article}": {week:,.0f} a day this week against a 90 day average of {baseline:,.0f}.',
-        views.rolling(7).mean(),
+        f'Google searches for "{keyword}", where 100 is the 5 year peak. '
+        f"Last week is {ratio:.2f}x its 12 month average.",
+        weekly,
     )
