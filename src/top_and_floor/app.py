@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from . import cards, favorites, tv
+from . import cards, favorites, trends, tv
 from .indicators import ema, rsi
 
 STATIC = Path(__file__).parent / "static"
@@ -46,6 +46,19 @@ def add_favorite(item: Favorite) -> list[dict]:
 def remove_favorite(symbol: str, exchange: str) -> list[dict]:
     favorites.remove(symbol, exchange)
     return favorites.all_favorites()
+
+
+class TrendsTerm(BaseModel):
+    symbol: str
+    exchange: str
+    term: str = ""
+
+
+@app.put("/api/trends-term")
+def set_trends_term(item: TrendsTerm) -> dict:
+    """Choose the Google Trends search term for a symbol. Empty restores the automatic one."""
+    trends.set_custom_term(item.symbol, item.exchange, item.term)
+    return {"term": trends.custom_term(item.symbol, item.exchange)}
 
 
 def _failed(key: str, title: str, exc: Exception) -> dict:
@@ -93,7 +106,7 @@ async def dashboard(symbol: str, exchange: str = "", type: str = "", description
         _safe("sentiment", "Fear and greed", sentiment),
         _safe("liquidity", "US net liquidity", cards.liquidity_card),
         _safe("dxy", "Dollar index (DXY)", cards.dxy_card),
-        _safe("interest", "Public interest", cards.public_interest_card, symbol, type, description),
+        _safe("interest", "Public interest", cards.public_interest_card, symbol, exchange, type, description),
     )
 
     def line(series):

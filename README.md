@@ -28,6 +28,8 @@ Then open http://127.0.0.1:8000 and search for a symbol.
 
 Search interest comes from the endpoints the Google Trends website uses, because Google's official Trends API is still an approval-only alpha. The search term is the coin name for crypto ("Bitcoin"), the ticker plus "stock" for stocks ("AAPL stock") and the ticker plus "ETF" for funds ("SPY ETF"). Results are stored for 12 hours.
 
+When the automatic term is a poor fit, open "Change search term" on the card and save your own. It is remembered per symbol; "Use automatic" goes back to the default.
+
 ## Cache
 
 Everything requested from TradingView and Google Trends is stored in a SQLite database at `data/cache.sqlite` (change it with `TOP_AND_FLOOR_DB`). Bars are kept and topped up with only the missing days once they are older than 30 minutes, symbol searches are kept for a day, and stored data is served when TradingView is unreachable. Delete the file to start clean.

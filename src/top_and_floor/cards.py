@@ -163,12 +163,15 @@ def trends_keyword(symbol: str, asset_type: str, description: str) -> str:
     return description or symbol
 
 
-def public_interest_card(symbol: str, asset_type: str, description: str) -> dict:
+def public_interest_card(symbol: str, exchange: str, asset_type: str, description: str) -> dict:
     """Google searches: the last finished week against the 12 month average."""
-    keyword = trends_keyword(symbol, asset_type, description)
+    custom = trends.custom_term(symbol, exchange)
+    keyword = custom or trends_keyword(symbol, asset_type, description)
+    # The page uses these two to offer changing the search term.
+    term = {"keyword": keyword, "custom": custom is not None}
     weekly = trends.interest_over_time(keyword)
     if weekly.empty or weekly.max() == 0:
-        return _card(
+        return term | _card(
             "interest", "Public interest", "n/a", "No search data", "neutral",
             f'Google Trends has too few searches for "{keyword}".', None,
         )
@@ -181,7 +184,7 @@ def public_interest_card(symbol: str, asset_type: str, description: str) -> dict
         label, tone = "Low attention", "bull"
     else:
         label, tone = "Normal attention", "neutral"
-    return _card(
+    return term | _card(
         "interest",
         "Public interest",
         f"{now:.0f}",

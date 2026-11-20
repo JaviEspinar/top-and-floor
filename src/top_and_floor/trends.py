@@ -26,7 +26,28 @@ CREATE TABLE IF NOT EXISTS trends (
     fetched_at REAL NOT NULL, points TEXT NOT NULL,
     PRIMARY KEY (keyword, timeframe)
 ) WITHOUT ROWID;
+-- Search terms the user chose for a symbol, replacing the automatic one.
+CREATE TABLE IF NOT EXISTS trend_terms (
+    symbol TEXT NOT NULL, exchange TEXT NOT NULL, term TEXT NOT NULL,
+    PRIMARY KEY (symbol, exchange)
+) WITHOUT ROWID;
 """
+
+
+def custom_term(symbol: str, exchange: str) -> str | None:
+    with closing(connect(SCHEMA)) as conn:
+        row = conn.execute("SELECT term FROM trend_terms WHERE symbol = ? AND exchange = ?", (symbol, exchange)).fetchone()
+    return row[0] if row else None
+
+
+def set_custom_term(symbol: str, exchange: str, term: str) -> None:
+    """An empty term goes back to the automatic one."""
+    term = term.strip()
+    with closing(connect(SCHEMA)) as conn, conn:
+        if term:
+            conn.execute("INSERT OR REPLACE INTO trend_terms VALUES (?, ?, ?)", (symbol, exchange, term))
+        else:
+            conn.execute("DELETE FROM trend_terms WHERE symbol = ? AND exchange = ?", (symbol, exchange))
 
 
 def _unwrap(text: str) -> dict:
