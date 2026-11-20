@@ -1,0 +1,23 @@
+[project]
+name = "top-and-floor"
+version = "0.1.0"
+description = "Indicator dashboard for stocks, ETFs and crypto"
+requires-python = ">=3.13"
+dependencies = [
+    "certifi>=2026.10.23",
+    "fastapi>=0.165.0",
+    "httpx>=0.28.1",
+    "pandas>=3.1.1",
+    "tvdatafeed",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[project.scripts]
+top-and-floor = "top_and_floor.app:main"
+
+[build-system]
+requires = ["uv_build>=0.13.5,<0.14.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+tvdatafeed = { git = "https://github.com/rongardF/tvdatafeed.git" }
